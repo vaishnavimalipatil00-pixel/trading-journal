@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-# --------------------------------------------------
+# =========================================================
 # PAGE SETTINGS
-# --------------------------------------------------
+# =========================================================
 
 st.set_page_config(
     page_title="Educational Trading Journal",
@@ -12,21 +12,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# --------------------------------------------------
+# =========================================================
 # SESSION STORAGE
-# --------------------------------------------------
+# =========================================================
 
 if "trades" not in st.session_state:
     st.session_state.trades = []
 
-if "selected_date" not in st.session_state:
-    st.session_state.selected_date = date.today()
 
-# --------------------------------------------------
+# =========================================================
 # FUNCTIONS
-# --------------------------------------------------
+# =========================================================
 
 def calculate_pnl(order, entry, exit_price, quantity):
+
     if exit_price <= 0:
         return 0.0
 
@@ -37,9 +36,11 @@ def calculate_pnl(order, entry, exit_price, quantity):
 
 
 def calculate_risk_reward(order, entry, sl, tp):
+
     if order == "BUY":
         risk = abs(entry - sl)
         reward = abs(tp - entry)
+
     else:
         risk = abs(sl - entry)
         reward = abs(entry - tp)
@@ -50,9 +51,9 @@ def calculate_risk_reward(order, entry, sl, tp):
     return reward / risk
 
 
-# --------------------------------------------------
+# =========================================================
 # SIDEBAR
-# --------------------------------------------------
+# =========================================================
 
 st.sidebar.title("📊 Trading Journal")
 
@@ -68,37 +69,27 @@ page = st.sidebar.radio(
     ]
 )
 
-# ==================================================
+
+# =========================================================
 # DASHBOARD
-# ==================================================
+# =========================================================
 
 if page == "Dashboard":
 
     st.title("📊 Educational Trading Journal")
 
-    st.write(
-        "Track your trades, review your charts and study your performance."
+    st.caption(
+        "For educational and study purposes only."
     )
 
-    st.info(
-        "⚠️ Educational and study purposes only. "
-        "This application does not provide financial advice."
+    df = pd.DataFrame(
+        st.session_state.trades
     )
-
-    st.divider()
-
-    df = pd.DataFrame(st.session_state.trades)
 
     if df.empty:
 
-        st.subheader("Welcome 👋")
-
-        st.write(
-            "You don't have any trades yet."
-        )
-
-        st.write(
-            "Go to **Add Trade** to record your first trade."
+        st.info(
+            "No trades yet. Go to Add Trade to create your first trade."
         )
 
     else:
@@ -113,7 +104,7 @@ if page == "Dashboard":
             df[df["P&L"] < 0]
         )
 
-        total_pnl = df["P&L"].sum()
+        total_profit = df["P&L"].sum()
 
         if total_trades > 0:
             win_rate = (
@@ -147,25 +138,29 @@ if page == "Dashboard":
 
         st.divider()
 
-        if total_pnl >= 0:
+        if total_profit >= 0:
+
             st.success(
-                f"Total Profit: {total_pnl:.2f}"
-            )
-        else:
-            st.error(
-                f"Total Loss: {total_pnl:.2f}"
+                f"💰 Total Profit: ${total_profit:,.2f}"
             )
 
-        st.subheader("📋 Recent Trades")
+        else:
+
+            st.error(
+                f"📉 Total Loss: ${abs(total_profit):,.2f}"
+            )
+
+        st.subheader("📋 Trade History")
 
         st.dataframe(
             df,
             use_container_width=True
         )
 
-# ==================================================
+
+# =========================================================
 # ADD TRADE
-# ==================================================
+# =========================================================
 
 elif page == "Add Trade":
 
@@ -173,7 +168,7 @@ elif page == "Add Trade":
 
     trade_date = st.date_input(
         "📅 Trade Date",
-        value=date.today()
+        date.today()
     )
 
     col1, col2 = st.columns(2)
@@ -182,12 +177,15 @@ elif page == "Add Trade":
 
         symbol = st.text_input(
             "Symbol",
-            value="XAUUSD"
+            "XAUUSD"
         )
 
         order = st.selectbox(
             "Order Type",
-            ["BUY", "SELL"]
+            [
+                "BUY",
+                "SELL"
+            ]
         )
 
         entry = st.number_input(
@@ -198,7 +196,7 @@ elif page == "Add Trade":
         )
 
         stop_loss = st.number_input(
-            "Stop Loss",
+            "Stop Loss (SL)",
             min_value=0.0,
             value=0.0,
             step=0.01
@@ -207,7 +205,7 @@ elif page == "Add Trade":
     with col2:
 
         take_profit = st.number_input(
-            "Take Profit",
+            "Take Profit (TP)",
             min_value=0.0,
             value=0.0,
             step=0.01
@@ -228,7 +226,7 @@ elif page == "Add Trade":
         )
 
         result = st.selectbox(
-            "Result",
+            "Trade Result",
             [
                 "OPEN",
                 "WIN",
@@ -242,8 +240,12 @@ elif page == "Add Trade":
     )
 
     screenshot = st.file_uploader(
-        "📷 Upload Chart Screenshot",
-        type=["png", "jpg", "jpeg"]
+        "📷 Upload Trading Chart",
+        type=[
+            "png",
+            "jpg",
+            "jpeg"
+        ]
     )
 
     st.divider()
@@ -288,18 +290,37 @@ elif page == "Add Trade":
             )
 
             trade = {
+
                 "Date": str(trade_date),
+
                 "Symbol": symbol,
+
                 "Order": order,
+
                 "Entry": entry,
+
                 "SL": stop_loss,
+
                 "TP": take_profit,
+
                 "Exit": exit_price,
+
                 "Quantity": quantity,
+
                 "Result": result,
-                "Risk:Reward": round(rr, 2),
-                "P&L": round(pnl, 2),
+
+                "Risk:Reward": round(
+                    rr,
+                    2
+                ),
+
+                "P&L": round(
+                    pnl,
+                    2
+                ),
+
                 "Notes": notes
+
             }
 
             st.session_state.trades.append(
@@ -310,17 +331,18 @@ elif page == "Add Trade":
                 "✅ Trade saved successfully!"
             )
 
-            if screenshot is not None:
+            if screenshot:
 
                 st.image(
                     screenshot,
-                    caption="Uploaded Trading Chart",
+                    caption="Trading Chart",
                     use_container_width=True
                 )
 
-# ==================================================
+
+# =========================================================
 # CALENDAR
-# ==================================================
+# =========================================================
 
 elif page == "Calendar":
 
@@ -328,7 +350,7 @@ elif page == "Calendar":
 
     selected_date = st.date_input(
         "Select Date",
-        value=date.today()
+        date.today()
     )
 
     df = pd.DataFrame(
@@ -338,52 +360,49 @@ elif page == "Calendar":
     if df.empty:
 
         st.info(
-            "No trades have been added yet."
+            "No trades available."
         )
 
     else:
 
-        daily_trades = df[
+        daily = df[
             df["Date"] ==
             str(selected_date)
         ]
 
-        st.subheader(
-            f"Trades on {selected_date}"
-        )
-
-        if daily_trades.empty:
+        if daily.empty:
 
             st.info(
-                "No trades recorded on this date."
+                "No trades on this date."
             )
 
         else:
 
             st.dataframe(
-                daily_trades,
+                daily,
                 use_container_width=True
             )
 
-            daily_pnl = daily_trades[
+            daily_profit = daily[
                 "P&L"
             ].sum()
 
-            if daily_pnl >= 0:
+            if daily_profit >= 0:
 
                 st.success(
-                    f"Daily Profit: {daily_pnl:.2f}"
+                    f"💰 Daily Profit: ${daily_profit:,.2f}"
                 )
 
             else:
 
                 st.error(
-                    f"Daily Loss: {daily_pnl:.2f}"
+                    f"📉 Daily Loss: ${abs(daily_profit):,.2f}"
                 )
 
-# ==================================================
+
+# =========================================================
 # BUY HISTORY
-# ==================================================
+# =========================================================
 
 elif page == "Buy History":
 
@@ -401,33 +420,34 @@ elif page == "Buy History":
 
     else:
 
-        buy_df = df[
+        buys = df[
             df["Order"] == "BUY"
         ]
 
-        if buy_df.empty:
+        if buys.empty:
 
             st.info(
-                "No BUY trades available."
+                "No BUY trades."
             )
 
         else:
 
             st.dataframe(
-                buy_df,
+                buys,
                 use_container_width=True
             )
 
-            buy_pnl = buy_df["P&L"].sum()
+            profit = buys["P&L"].sum()
 
             st.metric(
                 "BUY P&L",
-                f"{buy_pnl:.2f}"
+                f"${profit:,.2f}"
             )
 
-# ==================================================
+
+# =========================================================
 # SELL HISTORY
-# ==================================================
+# =========================================================
 
 elif page == "Sell History":
 
@@ -445,37 +465,42 @@ elif page == "Sell History":
 
     else:
 
-        sell_df = df[
+        sells = df[
             df["Order"] == "SELL"
         ]
 
-        if sell_df.empty:
+        if sells.empty:
 
             st.info(
-                "No SELL trades available."
+                "No SELL trades."
             )
 
         else:
 
             st.dataframe(
-                sell_df,
+                sells,
                 use_container_width=True
             )
 
-            sell_pnl = sell_df["P&L"].sum()
+            profit = sells["P&L"].sum()
 
             st.metric(
                 "SELL P&L",
-                f"{sell_pnl:.2f}"
+                f"${profit:,.2f}"
             )
 
-# ==================================================
+
+# =========================================================
 # WEEKLY OVERVIEW
-# ==================================================
+# =========================================================
 
 elif page == "Weekly Overview":
 
-    st.title("📊 Weekly Overview")
+    st.title("📊 Weekly Profit Overview")
+
+    st.caption(
+        "All profit and loss values are displayed in USD ($)."
+    )
 
     df = pd.DataFrame(
         st.session_state.trades
@@ -493,11 +518,15 @@ elif page == "Weekly Overview":
             df["Date"]
         )
 
+        # Create week
+
         df["Week"] = (
             df["Date"]
             .dt.to_period("W")
             .astype(str)
         )
+
+        # Calculate weekly P&L
 
         weekly = (
             df.groupby("Week")["P&L"]
@@ -505,41 +534,112 @@ elif page == "Weekly Overview":
             .reset_index()
         )
 
-        st.subheader(
-            "💰 Weekly Profit / Loss"
-        )
-
-        st.dataframe(
-            weekly,
-            use_container_width=True
-        )
-
-        st.subheader(
-            "📈 Weekly Performance Chart"
-        )
-
-        chart_data = weekly.set_index(
-            "Week"
-        )
-
-        st.bar_chart(
-            chart_data["P&L"]
-        )
-
-        st.subheader(
-            "📊 Cumulative Profit / Loss"
-        )
+        # Add cumulative profit
 
         weekly["Cumulative P&L"] = (
             weekly["P&L"].cumsum()
         )
 
-        cumulative_data = (
-            weekly.set_index("Week")
+        # -----------------------------------------
+        # TOTAL PROFIT
+        # -----------------------------------------
+
+        total_profit = weekly["P&L"].sum()
+
+        st.subheader("💰 Total Performance")
+
+        if total_profit >= 0:
+
+            st.success(
+                f"Total Profit: ${total_profit:,.2f}"
+            )
+
+        else:
+
+            st.error(
+                f"Total Loss: ${abs(total_profit):,.2f}"
+            )
+
+        # -----------------------------------------
+        # WEEKLY CARDS
+        # -----------------------------------------
+
+        st.subheader("📅 Weekly Results")
+
+        for _, row in weekly.iterrows():
+
+            week = row["Week"]
+            profit = row["P&L"]
+
+            if profit >= 0:
+
+                st.success(
+                    f"📈 {week}   →   +${profit:,.2f}"
+                )
+
+            else:
+
+                st.error(
+                    f"📉 {week}   →   -${abs(profit):,.2f}"
+                )
+
+        # -----------------------------------------
+        # WEEKLY BAR CHART
+        # -----------------------------------------
+
+        st.subheader(
+            "📊 Weekly Profit / Loss"
         )
 
+        chart_data = weekly.set_index(
+            "Week"
+        )[["P&L"]]
+
+        st.bar_chart(
+            chart_data
+        )
+
+        # -----------------------------------------
+        # CUMULATIVE CHART
+        # -----------------------------------------
+
+        st.subheader(
+            "📈 Cumulative Profit"
+        )
+
+        cumulative_data = weekly.set_index(
+            "Week"
+        )[["Cumulative P&L"]]
+
         st.line_chart(
-            cumulative_data[
-                "Cumulative P&L"
-            ]
+            cumulative_data
+        )
+
+        # -----------------------------------------
+        # TABLE
+        # -----------------------------------------
+
+        st.subheader(
+            "📋 Weekly Statistics"
+        )
+
+        display_weekly = weekly.copy()
+
+        display_weekly["P&L"] = (
+            display_weekly["P&L"]
+            .apply(
+                lambda x: f"${x:,.2f}"
+            )
+        )
+
+        display_weekly["Cumulative P&L"] = (
+            display_weekly["Cumulative P&L"]
+            .apply(
+                lambda x: f"${x:,.2f}"
+            )
+        )
+
+        st.dataframe(
+            display_weekly,
+            use_container_width=True
         )

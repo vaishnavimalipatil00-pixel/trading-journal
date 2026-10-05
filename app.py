@@ -7,7 +7,7 @@ from datetime import date
 # =========================================================
 
 st.set_page_config(
-    page_title="Trading Journal",
+    page_title="Educational Trading Journal",
     page_icon="📊",
     layout="wide"
 )
@@ -19,17 +19,18 @@ st.set_page_config(
 if "trades" not in st.session_state:
     st.session_state.trades = []
 
-
 # =========================================================
 # FUNCTIONS
 # =========================================================
 
 def calculate_risk_reward(order, entry, sl, tp):
 
+    if entry <= 0 or sl <= 0 or tp <= 0:
+        return 0.0
+
     if order == "BUY":
         risk = abs(entry - sl)
         reward = abs(tp - entry)
-
     else:
         risk = abs(sl - entry)
         reward = abs(entry - tp)
@@ -45,10 +46,10 @@ def currency_symbol(currency):
     if currency == "USD ($)":
         return "$"
 
-    elif currency == "INR (₹)":
+    if currency == "INR (₹)":
         return "₹"
 
-    elif currency == "USDT":
+    if currency == "USDT":
         return "USDT "
 
     return ""
@@ -56,9 +57,15 @@ def currency_symbol(currency):
 
 def format_money(value, currency):
 
-    symbol = currency_symbol(currency)
+    return f"{currency_symbol(currency)}{value:,.2f}"
 
-    return f"{symbol}{value:,.2f}"
+
+def get_trade_dataframe():
+
+    if not st.session_state.trades:
+        return pd.DataFrame()
+
+    return pd.DataFrame(st.session_state.trades)
 
 
 # =========================================================
@@ -79,7 +86,8 @@ page = st.sidebar.radio(
         "Add Trade",
         "Buy History",
         "Sell History",
-        "Weekly Overview"
+        "Weekly Overview",
+        "Delete Trade"
     ]
 )
 
@@ -97,14 +105,12 @@ if page == "Dashboard":
         "This journal is not financial advice."
     )
 
-    df = pd.DataFrame(
-        st.session_state.trades
-    )
+    df = get_trade_dataframe()
 
     if df.empty:
 
         st.info(
-            "No trades yet. Go to ➕ Add Trade to create your first trade."
+            "No trades yet. Go to Add Trade to create your first trade."
         )
 
     else:
@@ -124,13 +130,10 @@ if page == "Dashboard":
         )
 
         win_rate = (
-            winning_trades /
-            total_trades
-        ) * 100 if total_trades > 0 else 0
-
-        # -----------------------------------------
-        # MAIN METRICS
-        # -----------------------------------------
+            winning_trades / total_trades * 100
+            if total_trades > 0
+            else 0
+        )
 
         col1, col2, col3, col4 = st.columns(4)
 
@@ -156,10 +159,6 @@ if page == "Dashboard":
 
         st.divider()
 
-        # -----------------------------------------
-        # CURRENCY TOTALS
-        # -----------------------------------------
-
         st.subheader("💰 Overall P/L")
 
         currencies = [
@@ -178,28 +177,17 @@ if page == "Dashboard":
 
             total = currency_df["P&L"].sum()
 
-            with cols[i]:
-
-                st.metric(
-                    currency,
-                    format_money(
-                        total,
-                        currency
-                    )
-                )
+            cols[i].metric(
+                currency,
+                format_money(total, currency)
+            )
 
         st.divider()
 
-        # -----------------------------------------
-        # TRADE HISTORY
-        # -----------------------------------------
-
         st.subheader("📋 Trade History")
 
-        display_df = df.copy()
-
         st.dataframe(
-            display_df,
+            df,
             use_container_width=True,
             hide_index=True
         )
@@ -214,12 +202,8 @@ elif page == "Add Trade":
     st.title("➕ Add Trade")
 
     st.caption(
-        "Enter the trade details and the actual Profit/Loss shown by your platform."
+        "Enter your trade information and actual P/L."
     )
-
-    # -----------------------------------------
-    # BASIC DETAILS
-    # -----------------------------------------
 
     trade_date = st.date_input(
         "📅 Trade Date",
@@ -237,10 +221,7 @@ elif page == "Add Trade":
 
         order = st.selectbox(
             "Order Type",
-            [
-                "BUY",
-                "SELL"
-            ]
+            ["BUY", "SELL"]
         )
 
         currency = st.selectbox(
@@ -285,10 +266,6 @@ elif page == "Add Trade":
             step=0.01
         )
 
-    # -----------------------------------------
-    # SL / TP
-    # -----------------------------------------
-
     st.subheader("🎯 Trade Levels")
 
     col1, col2 = st.columns(2)
@@ -311,10 +288,6 @@ elif page == "Add Trade":
             step=0.01
         )
 
-    # -----------------------------------------
-    # PROFIT / LOSS
-    # -----------------------------------------
-
     st.subheader("💰 Trade Profit / Loss")
 
     profit_loss = st.number_input(
@@ -324,37 +297,17 @@ elif page == "Add Trade":
     )
 
     st.info(
-        "Example: If your broker shows +25.50 USD, enter 25.50. "
-        "For a loss, enter -25.50."
+        "Profit example: 25.50 | Loss example: -25.50"
     )
-
-    # -----------------------------------------
-    # NOTES
-    # -----------------------------------------
 
     notes = st.text_area(
-        "📝 Trade Notes",
-        placeholder="Example: Breakout + retest, good entry, followed trading plan..."
+        "📝 Trade Notes"
     )
-
-    # -----------------------------------------
-    # SCREENSHOT
-    # -----------------------------------------
 
     screenshot = st.file_uploader(
-        "📷 Upload Trading Chart / Trade Screenshot",
-        type=[
-            "png",
-            "jpg",
-            "jpeg"
-        ]
+        "📷 Upload Trading Chart",
+        type=["png", "jpg", "jpeg"]
     )
-
-    st.divider()
-
-    # -----------------------------------------
-    # PREVIEW
-    # -----------------------------------------
 
     if entry > 0 and stop_loss > 0 and take_profit > 0:
 
@@ -369,9 +322,7 @@ elif page == "Add Trade":
             f"🎯 Risk : Reward = 1 : {rr:.2f}"
         )
 
-    # -----------------------------------------
-    # SAVE TRADE
-    # -----------------------------------------
+    st.divider()
 
     if st.button(
         "💾 Save Trade",
@@ -379,7 +330,13 @@ elif page == "Add Trade":
         use_container_width=True
     ):
 
-        if entry <= 0:
+        if not symbol.strip():
+
+            st.error(
+                "Please enter a symbol."
+            )
+
+        elif entry <= 0:
 
             st.error(
                 "Please enter a valid Entry Price."
@@ -397,13 +354,6 @@ elif page == "Add Trade":
                 "Please enter a valid Take Profit."
             )
 
-        elif profit_loss == 0 and result == "WIN":
-
-            st.warning(
-                "WIN trade has ₹/$/USDT 0.00 P/L. "
-                "Please check the Profit/Loss value."
-            )
-
         else:
 
             rr = calculate_risk_reward(
@@ -413,11 +363,18 @@ elif page == "Add Trade":
                 take_profit
             )
 
+            # Create unique trade ID
+            trade_id = len(
+                st.session_state.trades
+            ) + 1
+
             trade = {
+
+                "Trade ID": trade_id,
 
                 "Date": str(trade_date),
 
-                "Symbol": symbol,
+                "Symbol": symbol.upper(),
 
                 "Order": order,
 
@@ -454,16 +411,12 @@ elif page == "Add Trade":
             )
 
             st.success(
-                "✅ Trade saved successfully!"
+                f"✅ Trade #{trade_id} saved successfully!"
             )
 
             st.write(
                 f"**P/L:** {format_money(profit_loss, currency)}"
             )
-
-            # -----------------------------------------
-            # SHOW SCREENSHOT
-            # -----------------------------------------
 
             if screenshot:
 
@@ -487,9 +440,7 @@ elif page == "Calendar":
         date.today()
     )
 
-    df = pd.DataFrame(
-        st.session_state.trades
-    )
+    df = get_trade_dataframe()
 
     if df.empty:
 
@@ -500,8 +451,7 @@ elif page == "Calendar":
     else:
 
         daily = df[
-            df["Date"] ==
-            str(selected_date)
+            df["Date"] == str(selected_date)
         ]
 
         if daily.empty:
@@ -524,10 +474,6 @@ elif page == "Calendar":
 
             st.divider()
 
-            # -----------------------------------------
-            # DAILY CURRENCY TOTALS
-            # -----------------------------------------
-
             st.subheader("💰 Daily P/L")
 
             currencies = [
@@ -546,15 +492,10 @@ elif page == "Calendar":
 
                 total = currency_df["P&L"].sum()
 
-                with cols[i]:
-
-                    st.metric(
-                        currency,
-                        format_money(
-                            total,
-                            currency
-                        )
-                    )
+                cols[i].metric(
+                    currency,
+                    format_money(total, currency)
+                )
 
 
 # =========================================================
@@ -565,9 +506,7 @@ elif page == "Buy History":
 
     st.title("📈 BUY History")
 
-    df = pd.DataFrame(
-        st.session_state.trades
-    )
+    df = get_trade_dataframe()
 
     if df.empty:
 
@@ -609,23 +548,14 @@ elif page == "Buy History":
 
             for i, currency in enumerate(currencies):
 
-                currency_df = buys[
+                total = buys[
                     buys["Currency"] == currency
-                ]
+                ]["P&L"].sum()
 
-                profit = currency_df[
-                    "P&L"
-                ].sum()
-
-                with cols[i]:
-
-                    st.metric(
-                        currency,
-                        format_money(
-                            profit,
-                            currency
-                        )
-                    )
+                cols[i].metric(
+                    currency,
+                    format_money(total, currency)
+                )
 
 
 # =========================================================
@@ -636,9 +566,7 @@ elif page == "Sell History":
 
     st.title("📉 SELL History")
 
-    df = pd.DataFrame(
-        st.session_state.trades
-    )
+    df = get_trade_dataframe()
 
     if df.empty:
 
@@ -680,23 +608,14 @@ elif page == "Sell History":
 
             for i, currency in enumerate(currencies):
 
-                currency_df = sells[
+                total = sells[
                     sells["Currency"] == currency
-                ]
+                ]["P&L"].sum()
 
-                profit = currency_df[
-                    "P&L"
-                ].sum()
-
-                with cols[i]:
-
-                    st.metric(
-                        currency,
-                        format_money(
-                            profit,
-                            currency
-                        )
-                    )
+                cols[i].metric(
+                    currency,
+                    format_money(total, currency)
+                )
 
 
 # =========================================================
@@ -708,18 +627,15 @@ elif page == "Weekly Overview":
     st.title("📊 Weekly Profit Overview")
 
     st.caption(
-        "Profit and Loss are separated by currency. "
-        "USD, INR and USDT are not combined."
+        "USD, INR and USDT are shown separately."
     )
 
-    df = pd.DataFrame(
-        st.session_state.trades
-    )
+    df = get_trade_dataframe()
 
     if df.empty:
 
         st.info(
-            "Add trades to see your weekly performance."
+            "Add trades to see weekly performance."
         )
 
     else:
@@ -728,19 +644,11 @@ elif page == "Weekly Overview":
             df["Date"]
         )
 
-        # -----------------------------------------
-        # CREATE WEEK
-        # -----------------------------------------
-
         df["Week"] = (
             df["Date"]
             .dt.to_period("W")
             .astype(str)
         )
-
-        # -----------------------------------------
-        # CURRENCY TABS
-        # -----------------------------------------
 
         tab_usd, tab_inr, tab_usdt = st.tabs(
             [
@@ -750,25 +658,25 @@ elif page == "Weekly Overview":
             ]
         )
 
-        # =================================================
-        # USD
-        # =================================================
+        for tab, currency, prefix in [
+            (tab_usd, "USD ($)", "$"),
+            (tab_inr, "INR (₹)", "₹"),
+            (tab_usdt, "USDT", "USDT ")
+        ]:
 
-        with tab_usd:
+            with tab:
 
-            currency = "USD ($)"
+                currency_df = df[
+                    df["Currency"] == currency
+                ].copy()
 
-            currency_df = df[
-                df["Currency"] == currency
-            ].copy()
+                if currency_df.empty:
 
-            if currency_df.empty:
+                    st.info(
+                        f"No {currency} trades available."
+                    )
 
-                st.info(
-                    "No USD trades available."
-                )
-
-            else:
+                    continue
 
                 weekly = (
                     currency_df
@@ -777,272 +685,206 @@ elif page == "Weekly Overview":
                     .reset_index()
                 )
 
-                weekly[
-                    "Cumulative P&L"
-                ] = weekly["P&L"].cumsum()
+                weekly["Cumulative P&L"] = (
+                    weekly["P&L"].cumsum()
+                )
 
-                total_profit = weekly[
-                    "P&L"
-                ].sum()
+                total = weekly["P&L"].sum()
 
                 st.metric(
-                    "Total USD P/L",
-                    format_money(
-                        total_profit,
-                        currency
-                    )
+                    f"Total {currency} P/L",
+                    f"{prefix}{total:,.2f}"
                 )
 
                 st.subheader(
-                    "📊 Weekly USD P/L"
+                    f"📊 Weekly {currency} P/L"
                 )
 
-                chart_data = weekly.set_index(
+                chart = weekly.set_index(
                     "Week"
                 )[["P&L"]]
 
-                st.bar_chart(
-                    chart_data
-                )
+                st.bar_chart(chart)
 
                 st.subheader(
-                    "📈 Cumulative USD P/L"
+                    f"📈 Cumulative {currency} P/L"
                 )
 
-                cumulative_data = weekly.set_index(
+                cumulative = weekly.set_index(
                     "Week"
                 )[["Cumulative P&L"]]
 
-                st.line_chart(
-                    cumulative_data
-                )
+                st.line_chart(cumulative)
 
                 st.subheader(
-                    "📋 USD Weekly Statistics"
+                    "📋 Weekly Statistics"
                 )
 
-                display_weekly = weekly.copy()
+                display = weekly.copy()
 
-                display_weekly["P&L"] = (
-                    display_weekly["P&L"]
-                    .apply(
-                        lambda x:
-                        f"${x:,.2f}"
-                    )
+                display["P&L"] = display[
+                    "P&L"
+                ].apply(
+                    lambda x:
+                    f"{prefix}{x:,.2f}"
                 )
 
-                display_weekly[
+                display["Cumulative P&L"] = display[
                     "Cumulative P&L"
-                ] = (
-                    display_weekly[
-                        "Cumulative P&L"
-                    ]
-                    .apply(
-                        lambda x:
-                        f"${x:,.2f}"
-                    )
+                ].apply(
+                    lambda x:
+                    f"{prefix}{x:,.2f}"
                 )
 
                 st.dataframe(
-                    display_weekly,
+                    display,
                     use_container_width=True,
                     hide_index=True
                 )
 
-        # =================================================
-        # INR
-        # =================================================
 
-        with tab_inr:
+# =========================================================
+# DELETE TRADE
+# =========================================================
 
-            currency = "INR (₹)"
+elif page == "Delete Trade":
 
-            currency_df = df[
-                df["Currency"] == currency
-            ].copy()
+    st.title("🗑️ Delete Trade")
 
-            if currency_df.empty:
+    st.warning(
+        "⚠️ Be careful: deleted trades cannot be recovered "
+        "from this version of the journal."
+    )
 
-                st.info(
-                    "No INR trades available."
+    df = get_trade_dataframe()
+
+    if df.empty:
+
+        st.info(
+            "There are no trades to delete."
+        )
+
+    else:
+
+        st.subheader(
+            "Select the trade you want to delete"
+        )
+
+        # Create readable trade options
+
+        trade_options = {}
+
+        for index, trade in df.iterrows():
+
+            trade_id = trade["Trade ID"]
+
+            label = (
+                f"Trade #{trade_id} | "
+                f"{trade['Date']} | "
+                f"{trade['Symbol']} | "
+                f"{trade['Order']} | "
+                f"{format_money(trade['P&L'], trade['Currency'])}"
+            )
+
+            trade_options[label] = trade_id
+
+        selected_trade = st.selectbox(
+            "Select Trade",
+            list(trade_options.keys())
+        )
+
+        selected_id = trade_options[
+            selected_trade
+        ]
+
+        st.divider()
+
+        # Find selected trade
+
+        selected_rows = df[
+            df["Trade ID"] == selected_id
+        ]
+
+        if not selected_rows.empty:
+
+            selected = selected_rows.iloc[0]
+
+            st.subheader(
+                "📋 Selected Trade"
+            )
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric(
+                "Trade ID",
+                f"#{selected['Trade ID']}"
+            )
+
+            col2.metric(
+                "Symbol",
+                selected["Symbol"]
+            )
+
+            col3.metric(
+                "Order",
+                selected["Order"]
+            )
+
+            col4.metric(
+                "P/L",
+                format_money(
+                    selected["P&L"],
+                    selected["Currency"]
                 )
+            )
 
-            else:
+            st.write(
+                f"**Date:** {selected['Date']}"
+            )
 
-                weekly = (
-                    currency_df
-                    .groupby("Week")["P&L"]
-                    .sum()
-                    .reset_index()
-                )
+            st.write(
+                f"**Entry:** {selected['Entry']}"
+            )
 
-                weekly[
-                    "Cumulative P&L"
-                ] = weekly["P&L"].cumsum()
+            st.write(
+                f"**SL:** {selected['SL']}"
+            )
 
-                total_profit = weekly[
-                    "P&L"
-                ].sum()
+            st.write(
+                f"**TP:** {selected['TP']}"
+            )
 
-                st.metric(
-                    "Total INR P/L",
-                    format_money(
-                        total_profit,
-                        currency
-                    )
-                )
+            st.write(
+                f"**Result:** {selected['Result']}"
+            )
 
-                st.subheader(
-                    "📊 Weekly INR P/L"
-                )
+            st.write(
+                f"**Notes:** {selected['Notes']}"
+            )
 
-                chart_data = weekly.set_index(
-                    "Week"
-                )[["P&L"]]
+            st.divider()
 
-                st.bar_chart(
-                    chart_data
-                )
+            confirm = st.checkbox(
+                "I confirm that I want to delete this trade."
+            )
 
-                st.subheader(
-                    "📈 Cumulative INR P/L"
-                )
+            if confirm:
 
-                cumulative_data = weekly.set_index(
-                    "Week"
-                )[["Cumulative P&L"]]
+                if st.button(
+                    "🗑️ DELETE SELECTED TRADE",
+                    type="primary"
+                ):
 
-                st.line_chart(
-                    cumulative_data
-                )
+                    # Remove selected trade
 
-                st.subheader(
-                    "📋 INR Weekly Statistics"
-                )
-
-                display_weekly = weekly.copy()
-
-                display_weekly["P&L"] = (
-                    display_weekly["P&L"]
-                    .apply(
-                        lambda x:
-                        f"₹{x:,.2f}"
-                    )
-                )
-
-                display_weekly[
-                    "Cumulative P&L"
-                ] = (
-                    display_weekly[
-                        "Cumulative P&L"
+                    st.session_state.trades = [
+                        trade
+                        for trade in st.session_state.trades
+                        if trade["Trade ID"] != selected_id
                     ]
-                    .apply(
-                        lambda x:
-                        f"₹{x:,.2f}"
+
+                    st.success(
+                        f"✅ Trade #{selected_id} deleted successfully."
                     )
-                )
 
-                st.dataframe(
-                    display_weekly,
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-        # =================================================
-        # USDT
-        # =================================================
-
-        with tab_usdt:
-
-            currency = "USDT"
-
-            currency_df = df[
-                df["Currency"] == currency
-            ].copy()
-
-            if currency_df.empty:
-
-                st.info(
-                    "No USDT trades available."
-                )
-
-            else:
-
-                weekly = (
-                    currency_df
-                    .groupby("Week")["P&L"]
-                    .sum()
-                    .reset_index()
-                )
-
-                weekly[
-                    "Cumulative P&L"
-                ] = weekly["P&L"].cumsum()
-
-                total_profit = weekly[
-                    "P&L"
-                ].sum()
-
-                st.metric(
-                    "Total USDT P/L",
-                    format_money(
-                        total_profit,
-                        currency
-                    )
-                )
-
-                st.subheader(
-                    "📊 Weekly USDT P/L"
-                )
-
-                chart_data = weekly.set_index(
-                    "Week"
-                )[["P&L"]]
-
-                st.bar_chart(
-                    chart_data
-                )
-
-                st.subheader(
-                    "📈 Cumulative USDT P/L"
-                )
-
-                cumulative_data = weekly.set_index(
-                    "Week"
-                )[["Cumulative P&L"]]
-
-                st.line_chart(
-                    cumulative_data
-                )
-
-                st.subheader(
-                    "📋 USDT Weekly Statistics"
-                )
-
-                display_weekly = weekly.copy()
-
-                display_weekly["P&L"] = (
-                    display_weekly["P&L"]
-                    .apply(
-                        lambda x:
-                        f"USDT {x:,.2f}"
-                    )
-                )
-
-                display_weekly[
-                    "Cumulative P&L"
-                ] = (
-                    display_weekly[
-                        "Cumulative P&L"
-                    ]
-                    .apply(
-                        lambda x:
-                        f"USDT {x:,.2f}"
-                    )
-                )
-
-                st.dataframe(
-                    display_weekly,
-                    use_container_width=True,
-                    hide_index=True
-                )
+                    st.rerun()
